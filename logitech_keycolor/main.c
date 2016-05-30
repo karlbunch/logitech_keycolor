@@ -29,7 +29,7 @@
 //  SOFTWARE.
 //
 
-#define VERSION "0.0.1"
+#define VERSION "0.0.2"
 #define COPYRIGHT "Copyright © 2016 Karl Bunch <http://www.karlbunch.com/>"
 
 #include <stdio.h>
@@ -468,7 +468,6 @@ void dumpDevices(IOHIDDeviceRef *devices, CFIndex numDevices, int verbose)
 }
 
 int main(int argc, char * argv[]) {
-#pragma unused ( argc, argv )
     uint8_t wasdColor = 0, colorRed = 0, colorGreen = 0, colorBlue = 0;
     int opt_ch;
     int option_dump = 0;
@@ -575,6 +574,8 @@ int main(int argc, char * argv[]) {
     CFRelease(devicesFound);
     devicesFound = NULL;
     
+    int exitValue = 0;
+    
     if (option_dump)
         dumpDevices(devices, numDevices, option_verbose > 4 ? 1 : 0);
     else
@@ -627,11 +628,12 @@ int main(int argc, char * argv[]) {
                     
                     if (retVal) {
                         fprintf(stderr, "WARNING: DeviceSetValue returned %d\n", retVal);
+                        exitValue = 100;
                     }
                 }
             }
         }
     
     free(devices);
-    exit(0);
+    exit(exitValue);
 }
