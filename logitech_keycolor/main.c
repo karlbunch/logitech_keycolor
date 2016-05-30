@@ -42,10 +42,8 @@
 static CFMutableDictionaryRef setMatchSelection(CFMutableDictionaryRef dictRef, CFStringRef key, UInt32 value)
 {
     if (dictRef == NULL) {
-        dictRef = CFDictionaryCreateMutable( kCFAllocatorDefault,
-                                            0,
-                                            &kCFTypeDictionaryKeyCallBacks,
-                                            &kCFTypeDictionaryValueCallBacks );
+        dictRef = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        
         CFAutorelease(dictRef);
     
         if (!dictRef) {
@@ -99,10 +97,10 @@ void usage(int exitCode, char * argv[], struct option *opts)
     exit(exitCode);
 }
 
-#define GUESS_UNKNOWN_TYPE 0
+#define GUESS_UNKNOWN_TYPES 0
 void cfValueToString(CFMutableStringRef str, CFTypeRef value)
 {
-#ifdef GUESS_UNKNOWN_TYPES
+#if GUESS_UNKNOWN_TYPES
     struct idMap {
         const char *name;
         CFTypeID id;
@@ -178,6 +176,9 @@ void cfValueToString(CFMutableStringRef str, CFTypeRef value)
         CFTypeRef *values = CFAllocatorAllocate(kCFAllocatorDefault, sizeof(CFTypeRef) * n, 0);
         CFDictionaryGetKeysAndValues(value, keys, values);
         for (CFIndex i = 0; i < n; i++) {
+            if (CFGetTypeID(values[i]) == CFBooleanGetTypeID() && !CFBooleanGetValue(values[i]))
+                continue;
+            
             if (i > 0) CFStringAppend(str, CFSTR(", "));
             cfValueToString(str, keys[i]);
             CFStringAppend(str, CFSTR("="));
@@ -186,8 +187,10 @@ void cfValueToString(CFMutableStringRef str, CFTypeRef value)
         CFAllocatorDeallocate(kCFAllocatorDefault, keys);
         CFAllocatorDeallocate(kCFAllocatorDefault, values);
         CFStringAppend(str, CFSTR(" }"));
+    } else if (valueType == CFBooleanGetTypeID()) {
+        CFStringAppend(str, CFBooleanGetValue(value) ? CFSTR("TRUE") : CFSTR("FALSE"));
     } else {
-#ifdef GUESS_UNKNOWN_TYPES
+#if GUESS_UNKNOWN_TYPES
         for (struct idMap *l = typeMap;l->name;l++) {
             if (valueType == l->id) {
                 CFStringAppendFormat(str, NULL, CFSTR("Type[%s]"), l->name);
@@ -196,6 +199,190 @@ void cfValueToString(CFMutableStringRef str, CFTypeRef value)
         }
 #endif /* GUESS_UNKNOWN_TYPES */
         CFStringAppendFormat(str, NULL, CFSTR("??type=0x%lx?? %@"), valueType, value);
+    }
+}
+
+void hidElementToString(CFMutableStringRef str, IOHIDElementRef element, char *basePrefix)
+{
+    CFMutableDictionaryRef props = CFDictionaryCreateMutable(kCFAllocatorDefault, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+    
+    CFAutorelease(props);
+    
+    CFStringRef tCFString = IOHIDElementGetName(element);
+    
+    if (tCFString) {
+        CFDictionarySetValue(props, CFSTR("Name"), tCFString);
+    }
+    
+    IOHIDElementType elementType = IOHIDElementGetType(element);
+    tCFString = CFSTR("unknown");
+    
+    switch(elementType) {
+        case kIOHIDElementTypeInput_Misc: tCFString = CFSTR("Misc"); break;
+        case kIOHIDElementTypeInput_Button: tCFString = CFSTR("Button"); break;
+        case kIOHIDElementTypeInput_Axis: tCFString = CFSTR("Axis"); break;
+        case kIOHIDElementTypeInput_ScanCodes: tCFString = CFSTR("ScanCodes"); break;
+        case kIOHIDElementTypeOutput: tCFString = CFSTR("Output"); break;
+        case kIOHIDElementTypeFeature: tCFString = CFSTR("Feature"); break;
+        case kIOHIDElementTypeCollection: tCFString = CFSTR("Collection"); break;
+    }
+    
+    CFDictionarySetValue(props, CFSTR("Type"), tCFString);
+    
+    IOHIDElementCollectionType elementCollectionType = IOHIDElementGetCollectionType(element);
+    tCFString = CFSTR("unknown");
+    
+    switch(elementCollectionType) {
+        case kIOHIDElementCollectionTypePhysical: tCFString = CFSTR("Physical"); break;
+        case kIOHIDElementCollectionTypeApplication: tCFString = CFSTR("Application"); break;
+        case kIOHIDElementCollectionTypeLogical: tCFString = CFSTR("Application"); break;
+        case kIOHIDElementCollectionTypeReport: tCFString = CFSTR("Report"); break;
+        case kIOHIDElementCollectionTypeNamedArray: tCFString = CFSTR("NamedArray"); break;
+        case kIOHIDElementCollectionTypeUsageSwitch: tCFString = CFSTR("UsageSwitch"); break;
+        case kIOHIDElementCollectionTypeUsageModifier: tCFString = CFSTR("UsageModifier"); break;
+    }
+    
+    CFDictionarySetValue(props, CFSTR("CollectionType"), tCFString);
+    
+    uint32_t tInt32 = IOHIDElementGetUsagePage(element);
+    tCFString = NULL;
+    
+    switch(tInt32) {
+        case kHIDPage_GenericDesktop: tCFString = CFSTR("GenericDesktop"); break;
+        case kHIDPage_Simulation: tCFString = CFSTR("Simulation"); break;
+        case kHIDPage_VR: tCFString = CFSTR("VR"); break;
+        case kHIDPage_Sport: tCFString = CFSTR("Sport"); break;
+        case kHIDPage_Game: tCFString = CFSTR("Game"); break;
+        case kHIDPage_GenericDeviceControls: tCFString = CFSTR("DeviceControls"); break;
+        case kHIDPage_KeyboardOrKeypad: tCFString = CFSTR("Keyboard"); break;
+        case kHIDPage_LEDs: tCFString = CFSTR("LEDS"); break;
+        case kHIDPage_Button: tCFString = CFSTR("Button"); break;
+        case kHIDPage_Ordinal: tCFString = CFSTR("Ordinal"); break;
+        case kHIDPage_Telephony: tCFString = CFSTR("Telephony"); break;
+        case kHIDPage_Consumer: tCFString = CFSTR("Consumer"); break;
+        case kHIDPage_Digitizer: tCFString = CFSTR("Digitizer"); break;
+        case kHIDPage_PID: tCFString = CFSTR("PID"); break;
+        case kHIDPage_Unicode: tCFString = CFSTR("Unicode"); break;
+        case kHIDPage_AlphanumericDisplay: tCFString = CFSTR("AlphanumericDisplay"); break;
+        case kHIDPage_Sensor: tCFString = CFSTR("Sensor"); break;
+        case kHIDPage_Monitor: tCFString = CFSTR("Monitor"); break;
+        case kHIDPage_MonitorEnumerated: tCFString = CFSTR("MonitorEnumerated"); break;
+        case kHIDPage_MonitorVirtual: tCFString = CFSTR("Virtual"); break;
+        case kHIDPage_MonitorReserved: tCFString = CFSTR("Reserved"); break;
+        case kHIDPage_PowerDevice: tCFString = CFSTR("PowerDevice"); break;
+        case kHIDPage_BatterySystem: tCFString = CFSTR("BatterySystem"); break;
+        case kHIDPage_PowerReserved: tCFString = CFSTR("PowerReserved"); break;
+        case kHIDPage_PowerReserved2: tCFString = CFSTR("PowerReserved2"); break;
+        case kHIDPage_BarCodeScanner: tCFString = CFSTR("BarCodeScanner"); break;
+        case kHIDPage_Scale: tCFString = CFSTR("Scale"); break;
+        case kHIDPage_MagneticStripeReader: tCFString = CFSTR("MangeticStripeReader"); break;
+        case kHIDPage_CameraControl: tCFString = CFSTR("CameraControl"); break;
+        case kHIDPage_Arcade: tCFString = CFSTR("Arcade"); break;
+        case kHIDPage_VendorDefinedStart: tCFString = CFSTR("VendorDefinedStart"); break;
+    }
+    
+    if (!tCFString) {
+        tCFString = CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("<0x%x>"), tInt32);
+    }
+    
+    CFDictionarySetValue(props, CFSTR("UsagePage"), tCFString);
+    
+    tInt32 = IOHIDElementGetUsage(element);
+    CFDictionarySetValue(props, CFSTR("Usage"), CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &tInt32));
+    
+    tInt32 = IOHIDElementGetReportSize(element);
+    CFDictionarySetValue(props, CFSTR("ReportSize"), CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &tInt32));
+    
+    tInt32 = IOHIDElementGetReportCount(element);
+    CFDictionarySetValue(props, CFSTR("ReportCount"), CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &tInt32));
+    
+    tInt32 = IOHIDElementGetReportID(element);
+    CFDictionarySetValue(props, CFSTR("ReportID"), CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &tInt32));
+    
+    tInt32 = IOHIDElementGetUnit(element);
+    CFDictionarySetValue(props, CFSTR("Unit"), CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &tInt32));
+    
+    tInt32 = IOHIDElementGetUnitExponent(element);
+    CFDictionarySetValue(props, CFSTR("UnitExponent"), CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &tInt32));
+    
+    Boolean tBoolean = IOHIDElementHasNullState(element);
+    CFDictionarySetValue(props, CFSTR("HasNullState"), (CFBooleanRef)(tBoolean ? kCFBooleanTrue : kCFBooleanFalse));
+    
+    tBoolean = IOHIDElementHasPreferredState(element);
+    CFDictionarySetValue(props, CFSTR("HasPreferredState"), (CFBooleanRef)(tBoolean ? kCFBooleanTrue : kCFBooleanFalse));
+    
+    tBoolean = IOHIDElementIsArray(element);
+    CFDictionarySetValue(props, CFSTR("IsArray"), (CFBooleanRef)(tBoolean ? kCFBooleanTrue : kCFBooleanFalse));
+    
+    tBoolean = IOHIDElementIsNonLinear(element);
+    CFDictionarySetValue(props, CFSTR("IsNonLinear"), (CFBooleanRef)(tBoolean ? kCFBooleanTrue : kCFBooleanFalse));
+    
+    tBoolean = IOHIDElementIsRelative(element);
+    CFDictionarySetValue(props, CFSTR("IsRelative"), (CFBooleanRef)(tBoolean ? kCFBooleanTrue : kCFBooleanFalse));
+    
+    tBoolean = IOHIDElementIsVirtual(element);
+    CFDictionarySetValue(props, CFSTR("IsVirtual"), (CFBooleanRef)(tBoolean ? kCFBooleanTrue : kCFBooleanFalse));
+    
+    tBoolean = IOHIDElementIsWrapping(element);
+    CFDictionarySetValue(props, CFSTR("IsWrapping"), (CFBooleanRef)(tBoolean ? kCFBooleanTrue : kCFBooleanFalse));
+    
+    CFIndex tCFIndexMin = IOHIDElementGetLogicalMin(element);
+    CFIndex tCFIndexMax = IOHIDElementGetLogicalMax(element);
+    CFDictionarySetValue(props, CFSTR("LogicalRange"), CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("%ld-%ld"), tCFIndexMin, tCFIndexMax));
+    
+    tCFIndexMin = IOHIDElementGetPhysicalMin(element);
+    tCFIndexMax = IOHIDElementGetPhysicalMax(element);
+    CFDictionarySetValue(props, CFSTR("PhysicalRange"), CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("%ld-%ld"), tCFIndexMin, tCFIndexMax));
+    
+    CFStringAppendCString(str, basePrefix, kCFStringEncodingMacRoman);
+    cfValueToString(str, props);
+    
+    CFArrayRef elementChildren = IOHIDElementGetChildren(element);
+    
+    if (elementChildren) {
+        CFDictionarySetValue(props, CFSTR("HasChildren"), kCFBooleanTrue);
+        CFIndex numChildren = CFArrayGetCount(elementChildren);
+        CFDictionarySetValue(props, CFSTR("NumChildren"), CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("%ld"), numChildren));
+        
+        for (CFIndex i = 0; i < numChildren; i++) {
+            IOHIDElementRef childElement = (IOHIDElementRef)CFArrayGetValueAtIndex(elementChildren, i);
+            char *prefix = NULL;
+            asprintf(&prefix, "%s[%ld] cookie:0x%04x ", basePrefix, i, IOHIDElementGetCookie(childElement));
+            hidElementToString(str, childElement, prefix);
+            free(prefix);
+            CFStringAppend(str, CFSTR("\n"));
+        }
+    }
+}
+
+void dumpElements(char *basePrefix, IOHIDDeviceRef device, int verbose)
+{
+    CFArrayRef elements = IOHIDDeviceCopyMatchingElements(device, NULL, kIOHIDOptionsTypeNone);
+    
+    if (!elements) {
+        if (verbose) {
+            printf("%s No elements found.\n", basePrefix);
+        }
+        return;
+    }
+    
+    CFAutorelease(elements);
+    
+    CFIndex numElements = CFArrayGetCount(elements);
+    
+    printf("%s %ld Elements:\n", basePrefix, numElements);
+    
+    for (CFIndex i = 0;i < numElements;i++) {
+        IOHIDElementRef element = (IOHIDElementRef)CFArrayGetValueAtIndex(elements, i);
+        
+        char *prefix = NULL;
+        asprintf(&prefix, "%s cookie:0x%04x ", basePrefix, IOHIDElementGetCookie(element));
+        
+        CFMutableStringRef buf = CFStringCreateMutable(kCFAllocatorDefault, 1024);
+        CFAutorelease(buf);
+        hidElementToString(buf, element, prefix);
+        printf("%s\n", CFStringGetCStringPtr(buf, kCFStringEncodingMacRoman));
+        free(prefix);
     }
 }
 
@@ -255,6 +442,9 @@ void dumpDevices(IOHIDDeviceRef *devices, CFIndex numDevices, int verbose)
     
     for (CFIndex i = 0; i < numDevices; i++) {
         IOHIDDeviceRef device = devices[i];
+        char *prefix = NULL;
+        
+        asprintf(&prefix, "%02ld ", i);
         
         for (int j = 0;properties[j];j++) {
             const char *valStr = "<notSet>";
@@ -270,8 +460,9 @@ void dumpDevices(IOHIDDeviceRef *devices, CFIndex numDevices, int verbose)
                 valStr = CFStringGetCStringPtr(buf, kCFStringEncodingMacRoman);
             }
         
-            printf("%02ld %-*s: %s\n", i, (int)colWidth, properties[j], valStr);
+            printf("%s %-*s: %s\n", prefix, (int)colWidth, properties[j], valStr);
         }
+        dumpElements(prefix, device, verbose);
         printf("\n");
     }
 }
